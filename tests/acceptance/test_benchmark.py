@@ -2,7 +2,7 @@ import tempfile
 import unittest
 import wave
 from pathlib import Path
-from benchmarks.harness import fixtures, normalize, score, percentile, measure
+from benchmarks.harness import fixtures, normalize, score, percentile, measure, summarize
 
 
 class BenchmarkTests(unittest.TestCase):
@@ -38,6 +38,42 @@ class BenchmarkTests(unittest.TestCase):
                 emit('final', 'synthetic')
         with self.assertRaises(ValueError):
             measure(Invalid(), 'unused', 100)
+
+    def test_delayed_probe_excluded_and_pre_onset_still_rejected(self):
+        class Clock:
+            now = 0
+            def __call__(self):
+                return self.now
+        clock = Clock()
+        def probe():
+            clock.now += 5_000_000_000
+            return 42
+        class Adapter:
+            def stream(self, path, emit):
+                clock.now += 200_000_000
+                emit('final', 'synthetic')
+                clock.now += 800_000_000
+        result, _ = measure(Adapter(), 'unused', .1, clock=clock,
+                            cpu_clock=lambda: 0, resource_probe=probe)
+        self.assertEqual(result['final_ms'], 100)
+        self.assertEqual(result['wall_ms'], 1000)
+        with self.assertRaisesRegex(ValueError, 'before annotated'):
+            measure(Adapter(), 'unused', .3, clock=clock,
+                    cpu_clock=lambda: 0, resource_probe=probe)
+
+    def test_summary_missing_counts(self):
+        missing = dict(partial_ms=None, final_ms=None, cpu_percent_one_core=2)
+        success = dict(partial_ms=10, final_ms=20, cpu_percent_one_core=3)
+        for rows, observed, rate in (([missing, success], 1, .5),
+                                     ([missing, missing], 0, 0)):
+            report = summarize(rows)
+            self.assertEqual(report['n'], 2)
+            for metric in ('partial_ms', 'final_ms'):
+                self.assertEqual(report[metric + '_observed'], observed)
+                self.assertEqual(report[metric + '_missing'], 2 - observed)
+                self.assertEqual(report[metric + '_completion_rate'], rate)
+            self.assertEqual(report['final_ms_p95'], 20 if observed else None)
+        self.assertIsNone(summarize([])['final_ms_completion_rate'])
 
 
 if __name__ == '__main__':

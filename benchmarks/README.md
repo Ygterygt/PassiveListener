@@ -23,7 +23,7 @@ opens, downloads, networking, prompt routing or TTS occur in this harness.
 
 Importable module exports `create()`. Object implements `load(config)`,
 `stream(wav_path, emit)` and `close()`. `stream` resets utterance state, paces PCM
-in real time from entry, waits for final decode, and emits synchronous
+in real time from entry (first sample must be fed at entry), waits for final decode, and emits synchronous
 `emit('partial'|'final', text)` events. Finals must be non-overlapping finalized
 segments. It must not use subprocess inference: current counters cover this
 process only. If production uses worker processes, extend instrumentation to
@@ -79,3 +79,10 @@ Parent requirements: https://github.com/Ygterygt/PassiveListener (bootstrap);
 authoritative acceptance is Paperclip YAV-5. YAV-6 owns engine/license decision,
 YAV-7 integration, YAV-9 observed Windows and microphone acceptance. Jason owns
 final architecture, security/privacy and release approval.
+
+Review correction: baseline RSS and CPU setup precede the monotonic stream-entry
+origin. Percentiles include per-metric observed/missing counts and completion
+rates. The duration guard only rejects streams shorter than real time; it cannot
+prove individual feed pacing (a burst followed by sleep can pass). Feed timestamps
+must be independently audited before production latency acceptance. Adapter setup
+or buffering before the first sample violates this contract.

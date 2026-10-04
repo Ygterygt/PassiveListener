@@ -78,23 +78,25 @@ def working_set():
     return counters.rss
 
 
-def measure(adapter, path, onset_s):
+def measure(adapter, path, onset_s, *, clock=time.perf_counter_ns,
+            cpu_clock=time.process_time_ns, resource_probe=working_set):
     events, finals = [], []
-    start = time.perf_counter_ns()
-    cpu = time.process_time_ns()
     def emit(kind, text):
         if kind not in ('partial', 'final') or not isinstance(text, str):
             raise ValueError('invalid adapter event')
         if text.strip():
-            events.append((kind, time.perf_counter_ns()))
+            events.append((kind, clock()))
             if kind == 'final':
                 finals.append(text)
-    before = working_set()
+    before = resource_probe()
+    cpu = cpu_clock()
+    # stream entry is the first-sample origin required by the adapter contract.
+    start = clock()
     adapter.stream(str(path), emit)
-    elapsed = time.perf_counter_ns() - start
+    elapsed = clock() - start
     result = {'wall_ms': elapsed / 1e6,
-              'cpu_percent_one_core': (time.process_time_ns() - cpu) / elapsed * 100,
-              'rss_before_bytes': before, 'rss_after_bytes': working_set(),
+              'cpu_percent_one_core': (cpu_clock() - cpu) / elapsed * 100 if elapsed else None,
+              'rss_before_bytes': before, 'rss_after_bytes': resource_probe(),
               'nonempty_events': len(events)}
     for kind in ('partial', 'final'):
         first = next((t for k, t in events if k == kind), None)
@@ -102,6 +104,18 @@ def measure(adapter, path, onset_s):
         if result[kind + '_ms'] is not None and result[kind + '_ms'] < 0:
             raise ValueError('event before annotated speech onset; invalid measurement')
     return result, ' '.join(finals)
+
+
+def summarize(rows):
+    result = {'n': len(rows)}
+    for metric in ('partial_ms', 'final_ms', 'cpu_percent_one_core'):
+        values = [r[metric] for r in rows if r[metric] is not None]
+        result[metric + '_observed'] = len(values)
+        result[metric + '_missing'] = len(rows) - len(values)
+        result[metric + '_completion_rate'] = len(values) / len(rows) if rows else None
+        for p in (50, 95, 99):
+            result[f'{metric}_p{p}'] = percentile(values, p / 100)
+    return result
 
 
 def run(args):
@@ -145,9 +159,8 @@ def run(args):
     for fixture in manifest['fixtures']:
         for phase in ('model_reload', 'warm'):
             group = [r for r in rows if r['fixture'] == fixture['id'] and r['phase'] == phase]
-            summaries.append({'fixture': fixture['id'], 'phase': phase, 'n': len(group),
-                              **{f'{metric}_p{p}': percentile([r[metric] for r in group if r[metric] is not None], p / 100)
-                                 for metric in ('partial_ms', 'final_ms', 'cpu_percent_one_core') for p in (50, 95, 99)}})
+            summaries.append({'fixture': fixture['id'], 'phase': phase,
+                              **summarize(group)})
     # Allowlist metadata: no paths, references, hypotheses or arbitrary config in report.
     report = {'schema': 1, 'platform': platform.platform(), 'python': platform.python_version(),
               'logical_cpus': os.cpu_count(), 'engine': manifest['engine'],

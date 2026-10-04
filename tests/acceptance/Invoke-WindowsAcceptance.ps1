@@ -13,15 +13,32 @@ $driverPath = (Resolve-Path -LiteralPath $Driver).Path
 $cases = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'windows_cases.json') | ConvertFrom-Json
 $root = [IO.Path]::GetFullPath($EvidenceDirectory)
 New-Item -ItemType Directory -Path $root -Force | Out-Null
+if ($Suite -eq 'archive') {
+    & python (Join-Path $PSScriptRoot 'archive_contract.py') --driver $driverPath --evidence $root
+    exit $LASTEXITCODE
+}
+if (@($cases.$Suite).Count -eq 0) { throw 'Empty acceptance suite' }
 $results = @()
 foreach ($case in $cases.$Suite) {
-    # Driver owns isolated fixture setup, actual action and assertions. Never pass transcript contents back.
+    # Host lifecycle suites still require a production driver. Archive assertions are QA-owned.
     $watch = [Diagnostics.Stopwatch]::StartNew()
     $result = & $driverPath -Case $case -EvidenceDirectory $root
     $watch.Stop()
     if ($result -isnot [System.Collections.IDictionary] -or $result.Status -notin @('pass','fail','blocked') -or
         -not $result.Command -or -not $result.Evidence -or -not $result.Expected -or -not $result.Observed) {
         throw "Invalid evidence contract for $case"
+    }
+    $evidencePath = [IO.Path]::GetFullPath([IO.Path]::Combine($root, [string]$result.Evidence))
+    if (-not $evidencePath.StartsWith($root.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
+        -not (Test-Path -LiteralPath $evidencePath -PathType Leaf) -or
+        (Get-Item -LiteralPath $evidencePath).Length -eq 0) {
+        throw "Missing, empty or out-of-root evidence for $case"
+    }
+    $cursor = Get-Item -LiteralPath $evidencePath
+    while ($cursor -and $cursor.FullName -ne $root) {
+        if ($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Reparse evidence path rejected' }
+        if ($cursor -is [IO.FileInfo]) { $cursor = $cursor.Directory } else { $cursor = $cursor.Parent }
+        if ($cursor.FullName -eq $root) { break }
     }
     $results += [ordered]@{ Case=$case; Status=$result.Status; Command=$result.Command;
         Expected=$result.Expected; Observed=$result.Observed; Evidence=$result.Evidence;
