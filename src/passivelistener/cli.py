@@ -5,7 +5,8 @@ import sys
 from pathlib import Path
 
 from passivelistener import __version__
-from passivelistener.integrity import IntegrityError, verify_file
+from passivelistener.integrity import IntegrityError
+from passivelistener.windows_input import verified_input
 
 
 def main() -> int:
@@ -20,7 +21,8 @@ def main() -> int:
     verify.add_argument("--size", required=True, type=int)
     args = parser.parse_args()
     try:
-        verify_file(args.path, args.sha256, args.size)
+        with verified_input(args.path.absolute(), args.sha256, args.size):
+            pass
     except (IntegrityError, OSError):
         # Neither paths nor artifact content are included in operational output.
         print("artifact verification failed", file=sys.stderr)
