@@ -1,0 +1,7 @@
+{
+  "install": ["fresh_install", "restart", "reboot_autostart", "crash_recovery", "reinstall", "repair", "upgrade", "rollback", "uninstall", "uninstall_again"],
+  "task": ["install_immediate_run", "enabled", "two_day_trigger", "start_when_available", "missed_run_recovery", "single_instance", "task_result_and_log"],
+  "archive": ["older_than_48h", "exactly_48h_retained", "younger_than_48h_retained", "locked_retained", "active_retained", "zip_content_verified", "verification_failure_retains_source", "retry_no_duplicate", "partial_failure_recovery"],
+  "privacy": ["user_session_capture", "session_zero_behavior", "permission_denied", "device_loss_recovery", "offline_no_egress", "logs_no_transcript", "utf8_atomic_collision_free", "configuration_overrides", "prompt_routing_and_tts_disabled", "ring_buffer_access_bound", "wake_event_disabled"],
+  "explicit_microphone_smoke": ["real_microphone_turkish"]
+}
