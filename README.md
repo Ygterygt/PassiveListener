@@ -27,8 +27,12 @@ The Windows validator holds a read lease on the input and every ancestor, reject
 reparse points/hard links and blocks concurrent writes/deletes during verification.
 The reusable context yields the same verified stream to a future consumer.
 See [model input boundary](docs/security/model-input.md) for its tests and limits.
-Protected staging, trusted manifest binding and native loader integration remain
-required; a CLI check does not secure a later independent load.
+`verify-model whisper-base <directory>` and `verify-model silero-v6 <directory>`
+use the accepted identities, filenames, sizes and SHA-256 pins compiled into the
+EXE. They do not accept hash overrides or read user-supplied manifests. The
+`verify-artifact` command remains a diagnostic with a caller-selected hash.
+Protected staging and native loader integration remain required; a CLI check
+does not secure a later independent load. No valid model load is claimed.
 
 Remaining parent scope: validated runtime settings; user-session capture;
 whisper.cpp/Silero integration and partial/final text; service/authorized IPC;
