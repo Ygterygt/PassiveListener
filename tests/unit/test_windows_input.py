@@ -1,8 +1,10 @@
 """Actual Windows filesystem operations using only generated fixture bytes."""
 
+import ctypes
 import hashlib
 import os
 import subprocess
+from ctypes import wintypes
 from pathlib import Path
 
 import pytest
@@ -43,6 +45,64 @@ def test_existing_writer_rejected(tmp_path: Path) -> None:
     with model.open("r+b"), pytest.raises(IntegrityError, match="locked"):
         with verified_input(model, DIGEST, len(PAYLOAD)):
             pytest.fail("writer must prevent lease")
+
+
+@pytest.mark.parametrize("close_mapping_handle", [False, True])
+def test_writable_view_without_file_handle_rejected(
+    tmp_path: Path, close_mapping_handle: bool,
+) -> None:
+    """Exercise a surviving native view, without Python mmap's duplicate handle."""
+    import msvcrt
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileMappingW.argtypes = [wintypes.HANDLE, ctypes.c_void_p,
+                                        wintypes.DWORD, wintypes.DWORD,
+                                        wintypes.DWORD, wintypes.LPCWSTR]
+    kernel.CreateFileMappingW.restype = wintypes.HANDLE
+    kernel.MapViewOfFile.argtypes = [wintypes.HANDLE, wintypes.DWORD,
+                                   wintypes.DWORD, wintypes.DWORD, ctypes.c_size_t]
+    kernel.MapViewOfFile.restype = ctypes.c_void_p
+    kernel.UnmapViewOfFile.argtypes = [ctypes.c_void_p]
+    kernel.UnmapViewOfFile.restype = wintypes.BOOL
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.restype = wintypes.BOOL
+
+    folder = tmp_path / "models"
+    folder.mkdir()
+    model = folder / "model.bin"
+    model.write_bytes(PAYLOAD)
+    mapping = None
+    view = None
+    try:
+        with model.open("r+b") as original:
+            mapping = kernel.CreateFileMappingW(
+                msvcrt.get_osfhandle(original.fileno()), None, 0x04, 0, 0, None,
+            )  # PAGE_READWRITE
+            assert mapping, ctypes.get_last_error()
+            view = kernel.MapViewOfFile(mapping, 0x02, 0, 0, 0)  # FILE_MAP_WRITE
+            assert view, ctypes.get_last_error()
+        assert original.closed
+        if close_mapping_handle:
+            assert kernel.CloseHandle(mapping)
+            mapping = None  # The view alone must retain the write conflict.
+        assert ctypes.string_at(view, len(PAYLOAD)) == PAYLOAD
+        with pytest.raises(IntegrityError, match="locked"):
+            with verified_input(model, DIGEST, len(PAYLOAD)):
+                pytest.fail("surviving writable view must prevent lease")
+    finally:
+        if view:
+            assert kernel.UnmapViewOfFile(view)
+        if mapping:
+            assert kernel.CloseHandle(mapping)
+
+    # A rejected acquisition must not leak ancestor handles; retry must work.
+    moved = tmp_path / "moved"
+    folder.rename(moved)
+    model = moved / "model.bin"
+    with verified_input(model, DIGEST, len(PAYLOAD)) as stream:
+        assert stream.read() == PAYLOAD
+    model.unlink()
+    moved.rmdir()
 
 
 def test_wrong_hash_and_consumer_failure_release_handles(tmp_path: Path) -> None:

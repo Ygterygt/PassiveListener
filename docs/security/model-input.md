@@ -20,8 +20,17 @@ No permissions, privileges or host policy are changed. Unsupported paths and
 sharing conflicts fail closed; there is no permissive fallback. Directory sharing
 may conflict with maintenance tools; retry only after the conflicting activity ends.
 
-Production integration remains incomplete: installer-owned ACLs, trusted manifest
-selection, protected staging, native loader compatibility and lifecycle tests must
+`verified_model(model_id, directory)` selects only the accepted multilingual base
+and Silero v6.0 pins compiled into `models.py`. It derives the filename, digest and
+length from that table, then holds the existing verified input lease. Unknown
+identities fail before file access; there is no external manifest, hash override,
+model download or fallback. `config/models.json` is a research inventory checked
+for consistency by tests, not a runtime source of trust. Updating accepted pins
+requires a reviewed application change. Protecting installed code/EXE is required:
+an attacker who can replace the application can also replace these pins.
+
+Production integration remains incomplete: installer-owned ACLs,
+protected staging, native loader compatibility and lifecycle tests must
 be implemented before claiming production model integrity. Caller-supplied hashes
 are not an authenticity mechanism. No STT engine or model is bundled here.
 
@@ -30,3 +39,11 @@ and ancestor rename attempts while the lease is open, rejects an already-open
 writer, rejects hard links and actual directory junctions, and verifies cleanup
 on bad hashes and consumer exceptions. These are filesystem tests, not microphone,
 native engine loading, reboot or performance acceptance.
+
+The surviving-writable-view regression uses native `CreateFileMappingW` and
+`MapViewOfFile`, closes the original writable file, then attempts the lease.
+Both variants (mapping handle retained, or closed while its view survives) must
+refuse the lease before consumer entry. It unmaps/closes in cleanup, renames the
+ancestor, reacquires the lease and deletes the synthetic fixture. Python `mmap`
+is deliberately not used because its duplicate file handle could mask this case.
+See [Windows mapping lifetime](https://learn.microsoft.com/en-us/windows/win32/memory/closing-a-file-mapping-object).
