@@ -1,0 +1,68 @@
+{
+  "whisper.cpp": {
+    "repo": "ggml-org/whisper.cpp",
+    "tag": "v1.7.6",
+    "sha": "a8d002cfd879315632a579e73f0148d06959de36",
+    "files": {
+      "LICENSE": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/a8d002cfd879315632a579e73f0148d06959de36/LICENSE",
+      "examples/stream/README.md": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/a8d002cfd879315632a579e73f0148d06959de36/examples/stream/README.md",
+      "examples/stream/stream.cpp": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/a8d002cfd879315632a579e73f0148d06959de36/examples/stream/stream.cpp",
+      "models/README.md": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/a8d002cfd879315632a579e73f0148d06959de36/models/README.md"
+    }
+  },
+  "faster-whisper": {
+    "repo": "SYSTRAN/faster-whisper",
+    "tag": "v1.2.0",
+    "sha": "93001a9438bb621285580c1074964672d891f551",
+    "files": {
+      "LICENSE": "https://raw.githubusercontent.com/SYSTRAN/faster-whisper/93001a9438bb621285580c1074964672d891f551/LICENSE",
+      "README.md": "https://raw.githubusercontent.com/SYSTRAN/faster-whisper/93001a9438bb621285580c1074964672d891f551/README.md"
+    }
+  },
+  "vosk": {
+    "repo": "alphacep/vosk-api",
+    "tag": "v0.3.45",
+    "sha": "cf2560c9f8a49d3d366b433fdabd78c518231bec",
+    "files": {
+      "COPYING": "https://raw.githubusercontent.com/alphacep/vosk-api/cf2560c9f8a49d3d366b433fdabd78c518231bec/COPYING",
+      "python/example/test_simple.py": "https://raw.githubusercontent.com/alphacep/vosk-api/cf2560c9f8a49d3d366b433fdabd78c518231bec/python/example/test_simple.py"
+    }
+  },
+  "sherpa-onnx": {
+    "repo": "k2-fsa/sherpa-onnx",
+    "tag": "v1.12.14",
+    "sha": "26aa2fa93210376a89de3a65a1a4dd320c37f5e9",
+    "files": {
+      "LICENSE": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/26aa2fa93210376a89de3a65a1a4dd320c37f5e9/LICENSE",
+      "README.md": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/26aa2fa93210376a89de3a65a1a4dd320c37f5e9/README.md"
+    }
+  },
+  "silero": {
+    "repo": "snakers4/silero-vad",
+    "tag": "v6.0",
+    "sha": "fba061dc5559f696e62171e9a0741782b0fdc23c",
+    "files": {
+      "LICENSE": "https://raw.githubusercontent.com/snakers4/silero-vad/fba061dc5559f696e62171e9a0741782b0fdc23c/LICENSE",
+      "README.md": "https://raw.githubusercontent.com/snakers4/silero-vad/fba061dc5559f696e62171e9a0741782b0fdc23c/README.md"
+    }
+  },
+  "webrtc": {
+    "repo": "wiseman/py-webrtcvad",
+    "tag": "2.0.10",
+    "sha": "bb429dac1a686807c69b916f03dd843fa10b0927",
+    "files": {
+      "LICENSE": "https://raw.githubusercontent.com/wiseman/py-webrtcvad/bb429dac1a686807c69b916f03dd843fa10b0927/LICENSE",
+      "README.rst": "https://raw.githubusercontent.com/wiseman/py-webrtcvad/bb429dac1a686807c69b916f03dd843fa10b0927/README.rst"
+    }
+  },
+  "whisper-model": {
+    "repo": "openai/whisper",
+    "tag": "v20250625",
+    "sha": "31243bad24cc746f07d4c8bfdd2d974872cb1803",
+    "files": {
+      "LICENSE": "https://raw.githubusercontent.com/openai/whisper/31243bad24cc746f07d4c8bfdd2d974872cb1803/LICENSE",
+      "README.md": "https://raw.githubusercontent.com/openai/whisper/31243bad24cc746f07d4c8bfdd2d974872cb1803/README.md",
+      "whisper/tokenizer.py": "https://raw.githubusercontent.com/openai/whisper/31243bad24cc746f07d4c8bfdd2d974872cb1803/whisper/tokenizer.py"
+    }
+  }
+}

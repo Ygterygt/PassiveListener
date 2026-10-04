@@ -1,0 +1,239 @@
+{
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.12.10",
+  "numpy": "2.2.6",
+  "onnxruntime": "1.22.1",
+  "webrtcvad": "2.0.14",
+  "seed": 6006,
+  "note": "Unpaced kernel cost, not capture latency, accuracy, idle CPU or end-to-end STT. First session is not OS-cache-cold. RAM unmeasured.",
+  "results": [
+    {
+      "engine": "webrtc",
+      "fixture": "silence",
+      "fixture_sha256": "ac2878215ad33205d1732578c89f25ededaad1b676911c540825bcf4baa42d9b",
+      "frame_ms": 20.0,
+      "init_ms": 0.0135,
+      "first_pass": {
+        "frames": 500,
+        "positive_frames": 0,
+        "kernel_ms_p50": 0.0016,
+        "kernel_ms_p95": 0.0019,
+        "wall_ms": 28.2818,
+        "cpu_ms": 0.0
+      },
+      "warm_passes": [
+        {
+          "frames": 500,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.0016,
+          "kernel_ms_p95": 0.0017,
+          "wall_ms": 1.1588,
+          "cpu_ms": 0.0
+        },
+        {
+          "frames": 500,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.0016,
+          "kernel_ms_p95": 0.0016,
+          "wall_ms": 1.1744,
+          "cpu_ms": 0.0
+        },
+        {
+          "frames": 500,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.0016,
+          "kernel_ms_p95": 0.0016,
+          "wall_ms": 1.1097,
+          "cpu_ms": 0.0
+        },
+        {
+          "frames": 500,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.0016,
+          "kernel_ms_p95": 0.0017,
+          "wall_ms": 1.1436,
+          "cpu_ms": 0.0
+        },
+        {
+          "frames": 500,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.0016,
+          "kernel_ms_p95": 0.0017,
+          "wall_ms": 1.2099,
+          "cpu_ms": 0.0
+        }
+      ]
+    },
+    {
+      "engine": "webrtc",
+      "fixture": "noise",
+      "fixture_sha256": "d90da139d2aa624df9351bff2e6f4bc61d290edce54d3f8984899a90caca37a7",
+      "frame_ms": 20.0,
+      "init_ms": 0.0066,
+      "first_pass": {
+        "frames": 500,
+        "positive_frames": 4,
+        "kernel_ms_p50": 0.0021,
+        "kernel_ms_p95": 0.0025,
+        "wall_ms": 1.554,
+        "cpu_ms": 15.625
+      },
+      "warm_passes": [
+        {
+          "frames": 500,
+          "positive_frames": 4,
+          "kernel_ms_p50": 0.002,
+          "kernel_ms_p95": 0.0022,
+          "wall_ms": 1.3642,
+          "cpu_ms": 0.0
+        },
+        {
+          "frames": 500,
+          "positive_frames": 4,
+          "kernel_ms_p50": 0.002,
+          "kernel_ms_p95": 0.0021,
+          "wall_ms": 1.3349,
+          "cpu_ms": 0.0
+        },
+        {
+          "frames": 500,
+          "positive_frames": 4,
+          "kernel_ms_p50": 0.002,
+          "kernel_ms_p95": 0.0021,
+          "wall_ms": 1.3217,
+          "cpu_ms": 0.0
+        },
+        {
+          "frames": 500,
+          "positive_frames": 4,
+          "kernel_ms_p50": 0.002,
+          "kernel_ms_p95": 0.0022,
+          "wall_ms": 1.4577,
+          "cpu_ms": 0.0
+        },
+        {
+          "frames": 500,
+          "positive_frames": 4,
+          "kernel_ms_p50": 0.002,
+          "kernel_ms_p95": 0.0021,
+          "wall_ms": 1.3318,
+          "cpu_ms": 0.0
+        }
+      ]
+    },
+    {
+      "engine": "silero",
+      "fixture": "silence",
+      "fixture_sha256": "ac2878215ad33205d1732578c89f25ededaad1b676911c540825bcf4baa42d9b",
+      "frame_ms": 32.0,
+      "init_ms": 171.8723,
+      "first_pass": {
+        "frames": 312,
+        "positive_frames": 0,
+        "kernel_ms_p50": 0.16410000000000002,
+        "kernel_ms_p95": 0.2835899999999999,
+        "wall_ms": 60.8531,
+        "cpu_ms": 62.5
+      },
+      "warm_passes": [
+        {
+          "frames": 312,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.14765,
+          "kernel_ms_p95": 0.242235,
+          "wall_ms": 51.8966,
+          "cpu_ms": 46.875
+        },
+        {
+          "frames": 312,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.14105,
+          "kernel_ms_p95": 0.21922499999999992,
+          "wall_ms": 49.1555,
+          "cpu_ms": 46.875
+        },
+        {
+          "frames": 312,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.14345000000000002,
+          "kernel_ms_p95": 0.25815499999999997,
+          "wall_ms": 51.3129,
+          "cpu_ms": 62.5
+        },
+        {
+          "frames": 312,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.1557,
+          "kernel_ms_p95": 0.28148,
+          "wall_ms": 55.4279,
+          "cpu_ms": 46.875
+        },
+        {
+          "frames": 312,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.16555,
+          "kernel_ms_p95": 0.2551649999999999,
+          "wall_ms": 56.296,
+          "cpu_ms": 62.5
+        }
+      ]
+    },
+    {
+      "engine": "silero",
+      "fixture": "noise",
+      "fixture_sha256": "d90da139d2aa624df9351bff2e6f4bc61d290edce54d3f8984899a90caca37a7",
+      "frame_ms": 32.0,
+      "init_ms": 96.5937,
+      "first_pass": {
+        "frames": 312,
+        "positive_frames": 0,
+        "kernel_ms_p50": 0.14095,
+        "kernel_ms_p95": 0.23097499999999996,
+        "wall_ms": 49.9349,
+        "cpu_ms": 46.875
+      },
+      "warm_passes": [
+        {
+          "frames": 312,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.13729999999999998,
+          "kernel_ms_p95": 0.21468,
+          "wall_ms": 48.4203,
+          "cpu_ms": 46.875
+        },
+        {
+          "frames": 312,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.14075,
+          "kernel_ms_p95": 0.21602499999999994,
+          "wall_ms": 47.7191,
+          "cpu_ms": 46.875
+        },
+        {
+          "frames": 312,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.13774999999999998,
+          "kernel_ms_p95": 0.268545,
+          "wall_ms": 50.7501,
+          "cpu_ms": 46.875
+        },
+        {
+          "frames": 312,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.1412,
+          "kernel_ms_p95": 0.24100999999999984,
+          "wall_ms": 50.3623,
+          "cpu_ms": 62.5
+        },
+        {
+          "frames": 312,
+          "positive_frames": 0,
+          "kernel_ms_p50": 0.15115,
+          "kernel_ms_p95": 0.28371999999999997,
+          "wall_ms": 52.9345,
+          "cpu_ms": 46.875
+        }
+      ]
+    }
+  ]
+}
