@@ -1,10 +1,14 @@
-"""Non-capturing offline artifact validator; never downloads model files."""
+"""Offline maintenance commands; no microphone or network side effects."""
 
 import argparse
+import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 from passivelistener import __version__
+from passivelistener.archive import archive_transcripts
+from passivelistener.archive_driver import run_request
 from passivelistener.integrity import IntegrityError
 from passivelistener.models import MODEL_PINS, verified_model
 from passivelistener.windows_input import verified_input
@@ -23,7 +27,20 @@ def main() -> int:
     model = commands.add_parser("verify-model", help="check bytes against compiled model pins")
     model.add_argument("model_id", choices=tuple(MODEL_PINS))
     model.add_argument("directory", type=Path)
+    archive = commands.add_parser("archive", help="archive finalized transcripts older than 48h")
+    archive.add_argument("root", type=Path)
+    qa_archive = commands.add_parser("archive-test-request", help="local synthetic QA protocol")
+    qa_archive.add_argument("request", type=Path)
     args = parser.parse_args()
+    if args.command in ("archive", "archive-test-request"):
+        try:
+            result = (run_request(args.request) if args.command == "archive-test-request"
+                      else asdict(archive_transcripts(args.root)))
+        except (OSError, ValueError):
+            print("archive operation failed", file=sys.stderr)
+            return 2
+        print(json.dumps(result, sort_keys=True))
+        return 0 if args.command == "archive-test-request" or result["deferred"] == 0 else 1
     try:
         lease = (verified_model(args.model_id, args.directory.absolute())
                  if args.command == "verify-model"
