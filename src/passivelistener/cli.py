@@ -9,8 +9,10 @@ from pathlib import Path
 from passivelistener import __version__
 from passivelistener.archive import archive_transcripts
 from passivelistener.archive_driver import run_request
+from passivelistener.configuration import initialize_configuration, load_configuration
 from passivelistener.integrity import IntegrityError
 from passivelistener.models import MODEL_PINS, verified_model
+from passivelistener.provisioning import provision_output
 from passivelistener.windows_input import verified_input
 
 
@@ -31,7 +33,23 @@ def main() -> int:
     archive.add_argument("root", type=Path)
     qa_archive = commands.add_parser("archive-test-request", help="local synthetic QA protocol")
     qa_archive.add_argument("request", type=Path)
+    for command in ("init-config", "validate-config", "provision-output"):
+        configuration = commands.add_parser(command, help="user-bound configuration maintenance")
+        configuration.add_argument("directory", type=Path)
     args = parser.parse_args()
+    if args.command in ("init-config", "validate-config", "provision-output"):
+        try:
+            if args.command == "init-config":
+                initialize_configuration(args.directory)
+            else:
+                settings = load_configuration(args.directory)
+                if args.command == "provision-output":
+                    provision_output(Path(settings.output_directory))
+        except (OSError, ValueError):
+            print("configuration operation failed", file=sys.stderr)
+            return 2
+        print("configuration operation completed")
+        return 0
     if args.command in ("archive", "archive-test-request"):
         try:
             result = (run_request(args.request) if args.command == "archive-test-request"
@@ -57,3 +75,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PassiveListener user settings",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "microphone": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 65535,
+      "default": null
+    },
+    "model": {
+      "const": "whisper-base",
+      "default": "whisper-base"
+    },
+    "model_directory": {
+      "type": "string",
+      "pattern": "^[A-Za-z]:\\\\",
+      "default": "C:\\Program Files\\PassiveListener\\models"
+    },
+    "language": {
+      "const": "tr",
+      "default": "tr"
+    },
+    "vad_threshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5
+    },
+    "segment_seconds": {
+      "type": "number",
+      "minimum": 0.5,
+      "maximum": 30,
+      "default": 10
+    },
+    "output_directory": {
+      "type": "string",
+      "pattern": "^[A-Za-z]:\\\\",
+      "default": "C:\\temp\\LiveTranskripts"
+    },
+    "prompt_routing": {
+      "const": false,
+      "default": false
+    },
+    "tts": {
+      "const": false,
+      "default": false
+    },
+    "wake_word": {
+      "const": false,
+      "default": false
+    }
+  },
+  "$comment": "Runtime additionally rejects duplicate fields, noncanonical/reserved Windows paths and non-finite numbers, enforces UTF-8 and 16 KiB, and checks private ACLs and local fixed-drive leases. Schema alone is not a security validator."
+}
