@@ -23,4 +23,5 @@ Copy-Item LICENSE dist/LICENSE.txt
 python packaging/collect_notices.py
 if ($LASTEXITCODE -ne 0) { throw 'Notice collection failed' }
 
-'UNSIGNED engineering foundation: artifact validation only. No capture, service or installer yet. Not approved for release.' | Set-Content 'dist/UNSIGNED.txt'
+Copy-Item packaging/Invoke-ArchiveDriver.ps1 dist/Invoke-ArchiveDriver.ps1
+'UNSIGNED intermediate engineering build: validator and archiver only. No capture, service or installer yet. Not approved for release.' | Set-Content 'dist/UNSIGNED.txt'
