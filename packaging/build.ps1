@@ -12,6 +12,11 @@ $hash = (Get-FileHash -LiteralPath $fixture -Algorithm SHA256).Hash.ToLowerInvar
 if ($LASTEXITCODE -ne 0) { throw 'EXE valid artifact test failed' }
 & $exe verify-artifact $fixture --sha256 ('0' * 64) --size 22
 if ($LASTEXITCODE -ne 2) { throw 'EXE corruption test failed' }
+$modelFolder = Join-Path $PWD 'build/synthetic-models'
+New-Item -ItemType Directory -Force -Path $modelFolder | Out-Null
+Copy-Item -LiteralPath $fixture -Destination (Join-Path $modelFolder 'ggml-base.bin')
+& $exe verify-model whisper-base $modelFolder
+if ($LASTEXITCODE -ne 2) { throw 'EXE compiled model pin rejection failed' }
 $checksum = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
 "$checksum  PassiveListener-0.1.0.exe" | Set-Content -Encoding ascii 'dist/SHA256SUMS.txt'
 Copy-Item LICENSE dist/LICENSE.txt
