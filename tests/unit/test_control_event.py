@@ -1,6 +1,7 @@
 import ctypes
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -77,7 +78,8 @@ def test_native_subprocess_signal():
                 'e=PrivateEvent(); e.acquire(__import__("sys").argv[1], '
                 'create=False, signal=True); e.signal(); e.close()')
         result = subprocess.run([sys.executable, '-c', code, name], timeout=10,
-                                capture_output=True)
+                                capture_output=True,
+                                cwd=Path(__file__).resolve().parents[2] / "src")
         assert result.returncode == 0, result.stderr
         assert event.wait()
     finally:
