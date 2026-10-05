@@ -34,11 +34,12 @@ def _kernel() -> ctypes.WinDLL:
 
 @contextmanager
 def _handle(path: Path, *, directory: bool = False, delete: bool = False,
-            create: bool = False) -> Iterator[int]:
+            create: bool = False, security: bool = False) -> Iterator[int]:
     kernel = _kernel()
-    access = 0x80 if directory else 0x80000000 | (0x10000 if delete else 0)
+    access = 0x81 if directory else 0x80000000 | (0x10000 if delete else 0)
+    access |= 0x20000 if security else 0
     native = str(path) if str(path).startswith("\\\\?\\") else "\\\\?\\" + str(path)
-    handle = kernel.CreateFileW(native, access, 1 if directory else 0, None,
+    handle = kernel.CreateFileW(native, access, 3 if directory else 0, None,
                                 4 if create else 3, 0x00200000 | 0x02000000, None)
     if handle == ctypes.c_void_p(-1).value:
         raise OSError("storage lease unavailable")
@@ -119,3 +120,6 @@ def delete_held_source(stream: BinaryIO) -> None:
                                                 ctypes.byref(disposition),
                                                 ctypes.sizeof(disposition)):
         raise OSError("source deletion deferred")
+
+
+

@@ -36,7 +36,8 @@ def verified_input(path: Path, sha256: str, size: int) -> Iterator[BinaryIO]:
     """Yield the verified, rewound stream; fail closed outside local Windows.
 
     Reject reparse points at every level and multiple hard links. Ancestors and
-    the leaf are opened without write/delete sharing, from root to leaf. Never
+    the leaf are opened from root to leaf without delete sharing. The leaf also
+    denies write sharing; directory write sharing allows child operations. Never
     resolve symlinks before opening. Native consumers must use this stream or
     retain this context for the complete lifetime of any compatible read handle.
     """
@@ -67,9 +68,9 @@ def verified_input(path: Path, sha256: str, size: int) -> Iterator[BinaryIO]:
             for entry in [*reversed(path.parents), path]:
                 directory = entry != path
                 handle = kernel.CreateFileW(
-                    str(entry), 0x80 if directory else 0x80000000,
-                    1, None, 3, 0x00200000 | 0x02000000, None,
-                )  # READ_ATTRIBUTES/GENERIC_READ, SHARE_READ, OPEN_EXISTING, no follow
+                    str(entry), 0x81 if directory else 0x80000000,
+                    3 if directory else 1, None, 3, 0x00200000 | 0x02000000, None,
+                )  # Directories: list/read attributes, share read/write but never delete.
                 if handle == ctypes.c_void_p(-1).value:
                     raise IntegrityError("input could not be locked")
                 # Transfer leaf ownership to the CRT only after metadata checks.
@@ -99,3 +100,6 @@ def verified_input(path: Path, sha256: str, size: int) -> Iterator[BinaryIO]:
             yield stream
     except OSError:
         raise IntegrityError("input lease failed") from None
+
+
+
