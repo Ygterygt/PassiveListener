@@ -204,3 +204,162 @@ def test_start_failure_is_sanitized_and_not_retryable(monkeypatch):
         host.start()
     with pytest.raises(SupervisorError, match="not started"):
         host.stop()
+
+
+def test_partial_start_retains_child_without_admitting_worker(monkeypatch, tmp_path):
+    marker = tmp_path / "must-not-exist.txt"
+    host = WorkerSupervisor(partial(explicit_flush, marker), grace_seconds=0.2)
+    original = host._process.start
+
+    def partial_start(self):
+        original()
+        raise OSError("SYNTHETIC_PRIVATE_DIAGNOSTIC")
+
+    monkeypatch.setattr(type(host._process), "start", partial_start)
+    with pytest.raises(SupervisorError, match="worker start failed"):
+        host.start()
+    try:
+        assert host._started
+        assert not host._admitted.is_set()
+        assert host.stop() in (WorkerResult.FAILED, WorkerResult.TERMINATED)
+        assert not marker.exists()
+    finally:
+        host.stop()
+
+
+def host_for_parent_death(ready, connection):
+    host = WorkerSupervisor(partial(hanging, ready))
+    host.start()
+    connection.send(host._process.pid)
+    connection.close()
+    threading.Event().wait()
+
+
+def test_parent_termination_kills_contained_worker():
+    import ctypes as c
+    from ctypes import wintypes as w
+
+    context = mp.get_context("spawn")
+    ready = context.Event()
+    receiver, sender = context.Pipe(duplex=False)
+    parent = context.Process(target=host_for_parent_death, args=(ready, sender))
+    kernel = c.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = [w.DWORD, w.BOOL, w.DWORD]
+    kernel.OpenProcess.restype = w.HANDLE
+    kernel.WaitForSingleObject.argtypes = [w.HANDLE, w.DWORD]
+    kernel.WaitForSingleObject.restype = w.DWORD
+    kernel.TerminateProcess.argtypes = [w.HANDLE, w.UINT]
+    kernel.CloseHandle.argtypes = [w.HANDLE]
+    handle = None
+    parent.start()
+    sender.close()
+    try:
+        assert receiver.poll(10)
+        pid = receiver.recv()
+        handle = kernel.OpenProcess(0x100001, False, pid)
+        assert handle
+        assert ready.wait(10), "worker did not pass containment"
+        assert kernel.WaitForSingleObject(handle, 0) == 258
+        parent.terminate()
+        parent.join(5)
+        assert not parent.is_alive()
+        assert kernel.WaitForSingleObject(handle, 5000) == 0
+    finally:
+        if parent.is_alive():
+            parent.terminate()
+            parent.join(5)
+        if handle:
+            kernel.TerminateProcess(handle, 1)
+            kernel.CloseHandle(handle)
+        receiver.close()
+        parent.close()
+
+
+def test_missing_job_rejects_before_worker(tmp_path):
+    from passivelistener.supervisor import _entry
+
+    context = mp.get_context("spawn")
+    stop, admitted = context.Event(), context.Event()
+    admitted.set()
+    stop.set()
+    marker = tmp_path / "must-not-exist.txt"
+    child = context.Process(target=_entry, args=(
+        partial(explicit_flush, marker), stop, admitted, "Local\\PassiveListener-absent-test",
+    ))
+    child.start()
+    try:
+        child.join(5)
+        assert child.exitcode == 70
+        assert not marker.exists()
+    finally:
+        if child.is_alive():
+            child.terminate()
+            child.join(5)
+        child.close()
+
+
+def test_job_name_collision_rejected():
+    from uuid import uuid4
+
+    from passivelistener.worker_job import ContainmentError, WorkerJob
+
+    name = "Local\\PassiveListener-test-" + uuid4().hex
+    job = WorkerJob(name)
+    job.open()
+    duplicate = WorkerJob(name)
+    try:
+        with pytest.raises(ContainmentError):
+            duplicate.open()
+    finally:
+        duplicate.close()
+        job.close()
+        job.close()
+
+
+def test_pre_spawn_failure_job_cleanup_can_be_retried(monkeypatch):
+    from passivelistener.worker_job import WorkerJob
+
+    host = WorkerSupervisor(cooperative)
+    original = WorkerJob.close
+
+    def denied_start():
+        raise OSError("synthetic start failure")
+
+    def denied_close(self):
+        raise OSError("synthetic close failure")
+
+    monkeypatch.setattr(host._process, "start", denied_start)
+    with monkeypatch.context() as patch:
+        patch.setattr(WorkerJob, "close", denied_close)
+        with pytest.raises(SupervisorError, match="containment cleanup failed"):
+            host.start()
+    try:
+        assert host.stop() == WorkerResult.FAILED
+        assert host._job._handle is None
+        assert host.stop() == WorkerResult.FAILED
+    finally:
+        original(host._job)
+
+
+def test_initialization_and_cleanup_failure_retains_job(monkeypatch):
+    from passivelistener import worker_job
+
+    kernel = worker_job._kernel()
+    real_close = kernel.CloseHandle
+    host = WorkerSupervisor(cooperative)
+    monkeypatch.setattr(worker_job, "_kernel", lambda: kernel)
+    with monkeypatch.context() as patch:
+        patch.setattr(kernel, "SetInformationJobObject", lambda *args: 0)
+        patch.setattr(kernel, "CloseHandle", lambda handle: 0)
+        with pytest.raises(SupervisorError, match="containment cleanup failed"):
+            host.start()
+        assert host._job._handle
+        with pytest.raises(SupervisorError, match="containment cleanup failed"):
+            host.stop()
+        assert host._result is None
+    try:
+        assert host.stop() == WorkerResult.FAILED
+        assert host._job._handle is None
+    finally:
+        if host._job._handle:
+            real_close(host._job._handle)
