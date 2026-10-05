@@ -11,6 +11,7 @@ from passivelistener.private_storage import private_directory
 from passivelistener.session_guard import SessionRejected, require_capture_session
 
 CHECK_ARGUMENT = "--internal-worker-check"
+CONTROL_ARGUMENT = "--internal-worker-control"
 # Keep ownership if native cleanup cannot be confirmed; caller must retry or exit.
 _QUARANTINE: list[tuple[ContainedProcess, ExitStack]] = []
 
@@ -64,6 +65,12 @@ def check_frozen_worker() -> int:
 
 def dispatch() -> int:
     """Dispatch before loading the maintenance CLI; no imports from caller input."""
+    if sys.argv[1:2] == [CONTROL_ARGUMENT]:
+        if len(sys.argv) != 4:
+            return 64
+        from passivelistener.control_worker import control_worker
+
+        return control_worker(sys.argv[2], sys.argv[3])
     if sys.argv[1:2] == [CHECK_ARGUMENT]:
         if sys.argv[1:] != [CHECK_ARGUMENT]:
             return 64
@@ -74,3 +81,4 @@ def dispatch() -> int:
     from passivelistener.cli import main
 
     return main()
+
