@@ -23,8 +23,12 @@ The candidate EXE is **unsigned** and is not an installer or a production releas
 Windows may warn about an unknown publisher/SmartScreen reputation. Do not bypass
 organizational execution policies. Candidate artifacts are for independent review.
 Model pins are research inputs, not proof that model bytes have been staged locally.
-The validator must be integrated with a protected staging/load lifecycle before
-it can enforce production model integrity; checking a mutable path is not a lock.
+The Windows validator holds a read lease on the input and every ancestor, rejects
+reparse points/hard links and blocks concurrent writes/deletes during verification.
+The reusable context yields the same verified stream to a future consumer.
+See [model input boundary](docs/security/model-input.md) for its tests and limits.
+Protected staging, trusted manifest binding and native loader integration remain
+required; a CLI check does not secure a later independent load.
 
 Remaining parent scope: validated runtime settings; user-session capture;
 whisper.cpp/Silero integration and partial/final text; service/authorized IPC;
