@@ -36,7 +36,17 @@ def main() -> int:
     for command in ("init-config", "validate-config", "provision-output"):
         configuration = commands.add_parser(command, help="user-bound configuration maintenance")
         configuration.add_argument("directory", type=Path)
+    commands.add_parser("worker-bootstrap-check", help="frozen worker admission diagnostic")
     args = parser.parse_args()
+    if args.command == "worker-bootstrap-check":
+        from passivelistener.bootstrap import check_frozen_worker
+
+        try:
+            result_code = check_frozen_worker()
+        except Exception:
+            result_code = 70
+        print(f"worker bootstrap result: {result_code}")
+        return result_code
     if args.command in ("init-config", "validate-config", "provision-output"):
         try:
             if args.command == "init-config":
@@ -75,4 +85,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

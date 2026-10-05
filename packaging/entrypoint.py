@@ -1,3 +1,3 @@
-from passivelistener.cli import main
+from passivelistener.bootstrap import dispatch
 
-raise SystemExit(main())
+raise SystemExit(dispatch())

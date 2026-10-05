@@ -83,6 +83,8 @@ class ContainedProcess:
     Caller must close in finally. No handle inheritance, breakaway, shell, token
     manipulation, named-job lookup or multiprocessing import/unpickle bootstrap.
     The owner is the trusted, non-impersonating user host, never the SCM broker.
+    Optional temporary must be private; caller holds its private_directory lease
+    through child cleanup. Only TEMP/TMP are added to the minimal environment.
     """
 
     def __init__(self, *, kill_seconds: float = 5) -> None:
@@ -95,9 +97,11 @@ class ContainedProcess:
         self._closed = False
         self._closing = False
         self._exit: int | None = None
+        self._temporary: Path | None = None
         self._lock = RLock()
 
-    def start(self, executable: Path, arguments: tuple[str, ...], *, cwd: Path) -> None:
+    def start(self, executable: Path, arguments: tuple[str, ...], *, cwd: Path,
+              temporary: Path | None = None) -> None:
         with self._lock:
             if self._attempted or self._closed:
                 raise LaunchError("contained launch already attempted")
@@ -115,7 +119,14 @@ class ContainedProcess:
                 _checked(self._kernel.SetInformationJobObject(
                     self._job, 9, c.byref(limits), c.sizeof(limits),
                 ))
-                self._create(executable, command, cwd)
+                if temporary is None:
+                    self._create(executable, command, cwd)
+                else:
+                    from passivelistener.private_storage import private_directory
+
+                    with private_directory(temporary):
+                        self._temporary = temporary
+                        self._create(executable, command, cwd)
             except BaseException:
                 try:
                     self.close()
@@ -144,7 +155,10 @@ class ContainedProcess:
             root = os.environ.get("SystemRoot", "")
             if not root or "\0" in root:
                 raise LaunchError("contained launch failed")
-            environment = c.create_unicode_buffer("SystemRoot=" + root + "\0\0")
+            entries = ["SystemRoot=" + root]
+            if self._temporary is not None:
+                entries.extend(["TEMP=" + str(self._temporary), "TMP=" + str(self._temporary)])
+            environment = c.create_unicode_buffer("\0".join(entries) + "\0\0")
             mutable_command = c.create_unicode_buffer(command)
             _checked(self._kernel.CreateProcessW(
                 str(executable), mutable_command, None, None, False,
@@ -206,4 +220,3 @@ class ContainedProcess:
                 self._closed = True
             except BaseException:
                 raise LaunchError("contained cleanup unconfirmed") from None
-

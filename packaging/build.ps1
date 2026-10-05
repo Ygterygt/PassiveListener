@@ -5,6 +5,10 @@ if ($LASTEXITCODE -ne 0) { throw 'EXE build failed' }
 $exe = Join-Path $PWD 'dist/PassiveListener-0.1.0.exe'
 & $exe --version
 if ($LASTEXITCODE -ne 0) { throw 'EXE startup failed' }
+& $exe worker-bootstrap-check
+if ($LASTEXITCODE -notin @(0, 3)) { throw 'Frozen contained worker bootstrap failed' }
+& $exe --internal-worker-check unexpected
+if ($LASTEXITCODE -ne 64) { throw 'Frozen internal argument rejection failed' }
 $fixture = Join-Path $PWD 'build/synthetic.bin'
 [IO.File]::WriteAllBytes($fixture, [Text.Encoding]::UTF8.GetBytes('synthetic fixture only'))
 $hash = (Get-FileHash -LiteralPath $fixture -Algorithm SHA256).Hash.ToLowerInvariant()
