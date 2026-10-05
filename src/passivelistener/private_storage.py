@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from ctypes import wintypes
 from pathlib import Path
+from threading import Lock
 
 from passivelistener.storage_handles import _handle, _kernel, directory_lease
 
@@ -30,15 +31,44 @@ def _security() -> ctypes.WinDLL:
     return api
 
 
+# A failed native release has ambiguous ownership. Never retry or reuse its
+# address/handle in this process; retain the value until process termination.
+_cleanup_lock = Lock()
+_failed_resources: list[tuple[str, int]] = []
+
+
+class SecurityCleanupError(OSError):
+    """Fatal security-helper cleanup failure; terminate the owning worker."""
+
+
+def _require_clean() -> None:
+    with _cleanup_lock:
+        if _failed_resources:
+            raise SecurityCleanupError("security cleanup quarantine active")
+
+
+def _quarantine(kind: str, value: int) -> None:
+    with _cleanup_lock:
+        _failed_resources.append((kind, value))
+    raise SecurityCleanupError("security resource cleanup failed")
+
+
+def _close_token(token: wintypes.HANDLE) -> None:
+    if not _kernel().CloseHandle(token):
+        _quarantine("token", int(token.value or 0))
+
+
 def _free(pointer: ctypes.c_void_p) -> None:
     kernel = _kernel()
     kernel.LocalFree.argtypes = [ctypes.c_void_p]
     kernel.LocalFree.restype = ctypes.c_void_p
-    kernel.LocalFree(pointer)
+    if kernel.LocalFree(pointer):
+        _quarantine("allocation", int(pointer.value or 0))
 
 
 def current_user_sid() -> str:
     """Resolve the process user without accepting a caller-supplied target identity."""
+    _require_clean()
     kernel = _kernel()
     kernel.GetCurrentProcess.restype = wintypes.HANDLE
     api = _security()
@@ -71,11 +101,12 @@ def current_user_sid() -> str:
             raise OSError("interactive user storage required")
         return sid
     finally:
-        kernel.CloseHandle(token)
+        _close_token(token)
 
 
 @contextmanager
 def _descriptor(sddl: str) -> Iterator[ctypes.c_void_p]:
+    _require_clean()
     value = ctypes.c_void_p()
     if not _security().ConvertStringSecurityDescriptorToSecurityDescriptorW(
             sddl, 1, ctypes.byref(value), None):
@@ -87,6 +118,7 @@ def _descriptor(sddl: str) -> Iterator[ctypes.c_void_p]:
 
 
 def _sddl(value: ctypes.c_void_p) -> str:
+    _require_clean()
     result = ctypes.c_void_p()
     if not _security().ConvertSecurityDescriptorToStringSecurityDescriptorW(
             value, 1, 5, ctypes.byref(result), None):
