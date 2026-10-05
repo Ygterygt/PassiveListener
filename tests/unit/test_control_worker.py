@@ -9,7 +9,7 @@ from passivelistener import bootstrap
 from passivelistener import control_worker as worker
 from passivelistener.contained_process import ContainedProcess
 from passivelistener.control_event import PrivateEvent, event_name
-from passivelistener.session_guard import SessionRejected
+from passivelistener.session_guard import SessionRejected, require_capture_session
 
 
 @pytest.fixture
@@ -27,6 +27,11 @@ def pair():
 
 def test_real_contained_child_ready_stop(pair):
     ready, stop, names = pair
+    eligible = True
+    try:
+        require_capture_session()
+    except SessionRejected:
+        eligible = False
     child = ContainedProcess()
     try:
         # Source-mode equivalent of fixed dispatch; no microphone is opened.
@@ -36,6 +41,10 @@ def test_real_contained_child_ready_stop(pair):
                     ('-c', program, bootstrap.CONTROL_ARGUMENT, *names),
                     cwd=Path(__file__).resolve().parents[2] / 'src')
         child.resume()
+        if not eligible:
+            assert child.wait(10) == 3
+            assert not ready.wait()
+            return
         deadline = time.monotonic() + 10
         while not ready.wait(100):
             code = child.wait(0)
