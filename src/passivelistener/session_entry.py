@@ -7,6 +7,7 @@ from collections.abc import Callable
 from threading import Event, current_thread, main_thread
 from types import FrameType
 
+from passivelistener.lease_cleanup import require_clean as require_clean_leases
 from passivelistener.session_runtime import SessionRuntime
 
 NOTICE = (
@@ -44,6 +45,9 @@ def run_session_diagnostic(acknowledged: bool) -> int:
         if runtime is not None:
             try:
                 runtime.close()
+                # A prior failed release may have drained ExitStack callbacks.
+                # Successful retry cannot clear retained lease quarantine.
+                require_clean_leases()
             except BaseException:
                 # Do not release a live child's resources or print native exceptions.
                 # OS process teardown closes the non-inherited job handle.

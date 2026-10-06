@@ -7,6 +7,7 @@ from ctypes import wintypes
 from pathlib import Path
 from threading import Lock
 
+from passivelistener.lease_cleanup import require_clean as require_clean_leases
 from passivelistener.storage_handles import _handle, _kernel, directory_lease
 
 
@@ -42,6 +43,7 @@ class SecurityCleanupError(OSError):
 
 
 def _require_clean() -> None:
+    require_clean_leases()
     with _cleanup_lock:
         if _failed_resources:
             raise SecurityCleanupError("security cleanup quarantine active")

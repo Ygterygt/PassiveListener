@@ -9,6 +9,7 @@ from ctypes import wintypes
 from pathlib import Path
 from typing import BinaryIO
 
+from passivelistener.lease_cleanup import close_fd, close_handle, close_stream, require_clean
 from passivelistener.windows_input import _FileInfo
 
 
@@ -35,6 +36,7 @@ def _kernel() -> ctypes.WinDLL:
 @contextmanager
 def _handle(path: Path, *, directory: bool = False, delete: bool = False,
             create: bool = False, security: bool = False) -> Iterator[int]:
+    require_clean()
     kernel = _kernel()
     access = 0x81 if directory else 0x80000000 | (0x10000 if delete else 0)
     access |= 0x20000 if security else 0
@@ -53,7 +55,7 @@ def _handle(path: Path, *, directory: bool = False, delete: bool = False,
             raise OSError("storage hard links rejected")
         yield handle
     finally:
-        kernel.CloseHandle(handle)
+        close_handle(kernel, handle)
 
 
 @contextmanager
@@ -100,15 +102,17 @@ def source_lease(path: Path, *, delete: bool = False) -> Iterator[BinaryIO]:
         try:
             fd = msvcrt.open_osfhandle(duplicate.value, os.O_RDONLY | os.O_BINARY)
         except BaseException:
-            kernel.CloseHandle(duplicate)
+            close_handle(kernel, duplicate.value)
             raise
         try:
             stream = os.fdopen(fd, "rb")
         except BaseException:
-            os.close(fd)
+            close_fd(fd)
             raise
-        with stream:
+        try:
             yield stream
+        finally:
+            close_stream(stream)
 
 
 def delete_held_source(stream: BinaryIO) -> None:
