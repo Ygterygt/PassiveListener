@@ -7,7 +7,7 @@ import time
 import uuid
 from contextlib import ExitStack
 from pathlib import Path
-from threading import RLock
+from threading import Event, RLock
 
 from passivelistener.bootstrap import CONTROL_ARGUMENT
 from passivelistener.contained_process import ContainedProcess
@@ -31,6 +31,7 @@ class ControlHost:
     cleanup but never restore admission. No destructor hides failed cleanup.
     start() readiness is diagnostic eligibility, not consent or engine health.
     A session notifier must call close on lock/disconnect; not wired here yet.
+    Cancellation is cooperative between native calls, never a hard-time bound.
     """
 
     def __init__(self) -> None:
@@ -44,11 +45,26 @@ class ControlHost:
         self._closing = False
         self._running = False
         self._lock = RLock()
+        self._cancelled = Event()
+
+    def request_cancel(self) -> None:
+        """Permanently revoke startup without waiting for the lifecycle lock.
+
+        Safe for a notification callback: does not touch native owned handles.
+        The lifecycle owner must still call close() to reap an admitted worker.
+        This is a cancellation latch, not a session notification registration.
+        """
+        self._cancelled.set()
+
+    def _check_cancelled(self) -> None:
+        if self._cancelled.is_set():
+            raise RuntimeError('control host cancelled')
 
     def start(self, *, ready_seconds: float = 10) -> None:
         _timeout(ready_seconds)
         with self._lock:
-            if self._attempted or self._closing or self._closed or _QUARANTINE:
+            if (self._attempted or self._closing or self._closed or _QUARANTINE
+                    or self._cancelled.is_set()):
                 raise RuntimeError('control host admission rejected')
             self._attempted = True
             try:
@@ -67,9 +83,11 @@ class ControlHost:
                                   cwd=executable.parent, temporary=self._temporary)
                 _require_clean()
                 require_capture_session()
+                self._check_cancelled()
                 self._child.resume()
                 deadline = time.monotonic() + ready_seconds
                 while True:
+                    self._check_cancelled()
                     _require_clean()
                     require_capture_session()
                     if self._child.wait(0) is not None:
@@ -78,6 +96,7 @@ class ControlHost:
                     if remaining <= 0:
                         raise RuntimeError('control worker readiness timeout')
                     if self._ready.wait():
+                        self._check_cancelled()
                         self._running = True
                         return
                     self._ready.wait(min(100, max(1, math.ceil(remaining * 1000))))
@@ -108,7 +127,8 @@ class ControlHost:
             return result
 
     def close(self) -> None:
-        """Reap child before releasing events/extraction lease; retain on failure."""
+        """Cancel startup, then reap before releasing events/lease; retain on failure."""
+        self.request_cancel()
         with self._lock:
             if self._closed:
                 return

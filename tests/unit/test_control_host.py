@@ -217,3 +217,107 @@ def test_session_loss_while_waiting_reaps(fake, monkeypatch):
         host.ControlHost().start()
     child.close.assert_called_once_with()
     assert leases == ['held', 'released']
+
+
+def test_cancellation_before_start_prevents_creation(fake):
+    _, _, child, _ = fake
+    owner = host.ControlHost()
+    owner.request_cancel()
+    with pytest.raises(RuntimeError, match='admission rejected'):
+        owner.start()
+    child.start.assert_not_called()
+    owner.close()
+
+
+def test_cancellation_during_creation_prevents_resume(fake):
+    _, _, child, leases = fake
+    owner = host.ControlHost()
+    child.start.side_effect = lambda *args, **kwargs: owner.request_cancel()
+    with pytest.raises(RuntimeError, match='startup failed'):
+        owner.start()
+    child.resume.assert_not_called()
+    child.close.assert_called_once_with()
+    assert leases == ['held', 'released']
+
+
+def test_cancellation_during_ready_probe_prevents_admission(fake):
+    ready, _, child, _ = fake
+    owner = host.ControlHost()
+    def cancel_and_ready(*args):
+        owner.request_cancel()
+        return True
+    ready.wait.side_effect = cancel_and_ready
+    with pytest.raises(RuntimeError, match='startup failed'):
+        owner.start()
+    assert not owner._running
+    child.close.assert_called_once_with()
+
+
+def test_close_revokes_waiting_startup_before_lifecycle_lock(fake):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    ready, _, child, leases = fake
+    owner = host.ControlHost()
+    waiting, release = Event(), Event()
+    def wait(milliseconds=0):
+        if milliseconds:
+            waiting.set()
+            assert release.wait(2)
+        return False
+    ready.wait.side_effect = wait
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        startup = pool.submit(owner.start)
+        try:
+            assert waiting.wait(2)
+            closing = pool.submit(owner.close)
+            assert owner._cancelled.wait(2)
+        finally:
+            release.set()
+        with pytest.raises(RuntimeError, match='startup failed'):
+            startup.result(timeout=2)
+        closing.result(timeout=2)
+    child.close.assert_called_once_with()
+    assert leases == ['held', 'released']
+
+
+def test_cancelled_startup_preserves_failed_cleanup_owner(fake):
+    _, _, child, leases = fake
+    owner = host.ControlHost()
+    child.start.side_effect = lambda *args, **kwargs: owner.request_cancel()
+    child.close.side_effect = OSError('private')
+    with pytest.raises(RuntimeError, match='cleanup unconfirmed'):
+        owner.start()
+    assert host._QUARANTINE == [owner]
+    assert leases == ['held']
+    child.close.side_effect = None
+    owner.close()
+    assert leases == ['held', 'released']
+
+
+def test_cancel_after_admission_requires_explicit_close(fake):
+    ready, stop, child, leases = fake
+    owner = host.ControlHost()
+    owner.start()
+    owner.request_cancel()
+    assert owner._running
+    child.close.assert_not_called()
+    ready.close.assert_not_called()
+    stop.close.assert_not_called()
+    assert leases == ['held']
+    owner.close()
+    assert not owner._running
+    child.close.assert_called_once_with()
+    assert leases == ['held', 'released']
+    with pytest.raises(RuntimeError, match='admission rejected'):
+        owner.start()
+
+
+def test_cancel_during_resume_reaps_before_readiness(fake):
+    ready, _, child, leases = fake
+    owner = host.ControlHost()
+    child.resume.side_effect = owner.request_cancel
+    with pytest.raises(RuntimeError, match='startup failed'):
+        owner.start()
+    ready.wait.assert_not_called()
+    child.close.assert_called_once_with()
+    assert leases == ['held', 'released']
