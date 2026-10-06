@@ -9,7 +9,8 @@ from passivelistener import session_runtime as sr
 
 
 @pytest.fixture(autouse=True)
-def clean():
+def clean(monkeypatch):
+    monkeypatch.setattr(sr, 'require_unlocked_session', lambda: None)
     sr._QUARANTINE.clear()
     yield
     sr._QUARANTINE.clear()
@@ -226,3 +227,56 @@ def test_revocation_wins_start_failure_but_cleanup_still_required(fake):
     assert owner.run(Event()) == 0
     fake[0].close.assert_called_once()
     assert owner._closed and not owner._startup.is_alive()
+
+
+def test_initial_unlock_checked_after_registration_before_host_start(fake, monkeypatch):
+    owner = sr.SessionRuntime()
+
+    def unlocked():
+        fake[1].acquire.assert_called_once()
+        fake[0].start.assert_not_called()
+        assert get_ident() != owner._thread
+
+    monkeypatch.setattr(sr, 'require_unlocked_session', unlocked)
+    fake[1].pump.side_effect = lambda: not owner._done.wait(2)
+    assert owner.run(Event()) == 0
+    fake[0].start.assert_called_once()
+
+
+def test_initial_lock_rejection_never_starts_host(fake, monkeypatch):
+    monkeypatch.setattr(sr, 'require_unlocked_session',
+                        Mock(side_effect=RuntimeError('unlocked session required')))
+    owner = sr.SessionRuntime()
+    assert owner.run(Event()) == 70
+    fake[0].start.assert_not_called()
+    fake[0].request_cancel.assert_called()
+    assert owner._closed and not owner._startup.is_alive()
+
+
+def test_revocation_during_unlock_query_prevents_native_host_launch(monkeypatch):
+    # Keep the real ControlHost admission latch; fake only the window and snapshot.
+    window = Mock()
+    entered, cancelled = Event(), Event()
+    monkeypatch.setattr(sr, 'SessionWindow', lambda host: window)
+    owner = sr.SessionRuntime()
+    child_start = Mock()
+    monkeypatch.setattr(owner._host._child, 'start', child_start)
+
+    def snapshot():
+        entered.set()
+        assert cancelled.wait(2)
+
+    def pump():
+        assert entered.wait(2)
+        owner._host.request_cancel()
+        cancelled.set()
+        assert owner._done.wait(2)
+        return False
+
+    monkeypatch.setattr(sr, 'require_unlocked_session', snapshot)
+    window.pump.side_effect = pump
+    window.close.side_effect = owner._host.close
+    assert owner.run(Event()) == 0
+    child_start.assert_not_called()
+    assert owner._failed and owner._host._closed and owner._closed
+    assert not owner._startup.is_alive()

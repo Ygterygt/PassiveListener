@@ -3,6 +3,7 @@
 from threading import Event, Thread, get_ident
 
 from passivelistener.control_host import ControlHost
+from passivelistener.session_unlock import require_unlocked_session
 from passivelistener.session_window import SessionWindow
 
 _QUARANTINE: list['SessionRuntime'] = []
@@ -29,6 +30,7 @@ class SessionRuntime:
 
     def _start(self) -> None:
         try:
+            require_unlocked_session()
             self._host.start()
         except BaseException:
             # Do not retain traceback or print potentially private backend diagnostics.
