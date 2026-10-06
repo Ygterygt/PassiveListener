@@ -56,19 +56,52 @@ def test_native_current_token_and_session():
             guard.require_capture_session()
 
 
-def test_native_repeated_queries_release_handles():
-    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel.GetCurrentProcess.restype = ctypes.c_void_p
-    kernel.GetProcessHandleCount.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
-    def count():
-        result = ctypes.c_ulong()
-        assert kernel.GetProcessHandleCount(kernel.GetCurrentProcess(), ctypes.byref(result))
-        return result.value
-    guard._snapshot()
-    before = count()
-    for _ in range(100):
+def test_native_repeated_queries_release_handles(monkeypatch):
+    # Attribute ownership to each native token; total process counts include
+    # unrelated finalizers and can fall while this test is running.
+    real_dll = ctypes.WinDLL
+    kernel = real_dll("kernel32", use_last_error=True)
+    kernel.GetHandleInformation.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+    kernel.GetHandleInformation.restype = ctypes.c_int
+    owned = set()
+    closed = []
+
+    class Function:
+        def __init__(self, name, function):
+            self.name, self.function = name, function
+
+        def __call__(self, *args):
+            self.function.argtypes = getattr(self, "argtypes", None)
+            self.function.restype = getattr(self, "restype", ctypes.c_int)
+            result = self.function(*args)
+            if self.name == "OpenProcessToken" and result:
+                owned.add(args[2]._obj.value)
+            if self.name == "CloseHandle":
+                handle = args[0].value
+                assert handle in owned
+                assert result
+                flags = ctypes.c_ulong()
+                assert not kernel.GetHandleInformation(handle, ctypes.byref(flags))
+                assert ctypes.get_last_error() == 6  # ERROR_INVALID_HANDLE
+                owned.remove(handle)
+                closed.append(handle)
+            return result
+
+    class Library:
+        def __init__(self, name, **kwargs):
+            self.dll = real_dll(name, **kwargs)
+            self.functions = {}
+
+        def __getattr__(self, name):
+            if name not in self.functions:
+                self.functions[name] = Function(name, getattr(self.dll, name))
+            return self.functions[name]
+
+    monkeypatch.setattr(ctypes, "WinDLL", Library)
+    for index in range(100):
         guard._snapshot()
-    assert count() == before
+        assert not owned
+        assert len(closed) == index + 1
 
 
 @pytest.mark.parametrize("fault", ["token_query", "token_size", "wts_size",
