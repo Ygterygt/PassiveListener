@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from passivelistener.integrity import IntegrityError, verify_stream
+from passivelistener.lease_cleanup import close_fd, close_handle, close_stream, require_clean
 
 
 class _FileInfo(ctypes.Structure):
@@ -36,10 +37,12 @@ def verified_input(path: Path, sha256: str, size: int) -> Iterator[BinaryIO]:
     """Yield the verified, rewound stream; fail closed outside local Windows.
 
     Reject reparse points at every level and multiple hard links. Ancestors and
-    the leaf are opened without write/delete sharing, from root to leaf. Never
+    the leaf are opened from root to leaf without delete sharing. The leaf also
+    denies write sharing; directory write sharing allows child operations. Never
     resolve symlinks before opening. Native consumers must use this stream or
     retain this context for the complete lifetime of any compatible read handle.
     """
+    require_clean()
     if os.name != "nt":
         raise IntegrityError("Windows input lease required")
     import msvcrt
@@ -65,23 +68,24 @@ def verified_input(path: Path, sha256: str, size: int) -> Iterator[BinaryIO]:
     try:
         with ExitStack() as stack:
             for entry in [*reversed(path.parents), path]:
+                require_clean()
                 directory = entry != path
                 handle = kernel.CreateFileW(
-                    str(entry), 0x80 if directory else 0x80000000,
-                    1, None, 3, 0x00200000 | 0x02000000, None,
-                )  # READ_ATTRIBUTES/GENERIC_READ, SHARE_READ, OPEN_EXISTING, no follow
+                    str(entry), 0x81 if directory else 0x80000000,
+                    3 if directory else 1, None, 3, 0x00200000 | 0x02000000, None,
+                )  # Directories: list/read attributes, share read/write but never delete.
                 if handle == ctypes.c_void_p(-1).value:
                     raise IntegrityError("input could not be locked")
                 # Transfer leaf ownership to the CRT only after metadata checks.
                 with ExitStack() as pending:
-                    pending.callback(kernel.CloseHandle, handle)
+                    pending.callback(close_handle, kernel, handle)
                     info = _FileInfo()
                     if not kernel.GetFileInformationByHandle(handle, ctypes.byref(info)):
                         raise IntegrityError("input metadata unavailable")
                     if info.attributes & 0x400 or bool(info.attributes & 0x10) != directory:
                         raise IntegrityError("input reparse point or file type rejected")
                     if directory:
-                        stack.callback(kernel.CloseHandle, handle)
+                        stack.callback(close_handle, kernel, handle)
                         pending.pop_all()
                     else:
                         if info.links != 1:
@@ -91,11 +95,14 @@ def verified_input(path: Path, sha256: str, size: int) -> Iterator[BinaryIO]:
                         try:
                             stream = os.fdopen(fd, "rb")
                         except BaseException:
-                            os.close(fd)
+                            close_fd(fd)
                             raise
-                        stack.enter_context(stream)
+                        stack.callback(close_stream, stream)
             verify_stream(stream, sha256, size)
             stream.seek(0)
             yield stream
     except OSError:
         raise IntegrityError("input lease failed") from None
+
+
+

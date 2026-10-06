@@ -27,8 +27,11 @@ jobs:
       - name: Build and smoke-test unsigned candidate
         shell: pwsh
         run: ./packaging/build.ps1
+      - name: Pinned QA harness and production archive contract
+        shell: pwsh
+        run: ./packaging/test-archive-contract.ps1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: PassiveListener-foundation-${{ github.sha }}
+          name: PassiveListener-intermediate-${{ github.sha }}
           path: dist/*
           if-no-files-found: error
