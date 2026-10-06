@@ -37,7 +37,13 @@ def main() -> int:
         configuration = commands.add_parser(command, help="user-bound configuration maintenance")
         configuration.add_argument("directory", type=Path)
     commands.add_parser("worker-bootstrap-check", help="frozen worker admission diagnostic")
+    session = commands.add_parser("session-diagnostic", help="foreground session lifecycle only")
+    session.add_argument("--acknowledge-diagnostic", action="store_true")
     args = parser.parse_args()
+    if args.command == "session-diagnostic":
+        from passivelistener.session_entry import run_session_diagnostic
+
+        return run_session_diagnostic(args.acknowledge_diagnostic)
     if args.command == "worker-bootstrap-check":
         from passivelistener.bootstrap import check_frozen_worker
 
@@ -85,3 +91,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
